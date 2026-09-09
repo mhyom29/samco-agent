@@ -158,4 +158,4 @@ def reset_conversation(customer_id: str):
 # site/index.html, site/furniture.html etc. become / , /furniture.html, ...
 # ---------------------------------------------------------------------------
 
-app.mount("/", StaticFiles(directory="site", html=True), name="site")
+#app.mount("/", StaticFiles(directory="site", html=True), name="site")
