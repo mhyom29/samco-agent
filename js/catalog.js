@@ -6,7 +6,7 @@
 
 // ⚠️ SET THIS to your bot's @username (from BotFather) before shipping —
 // this is what "Checkout on Telegram" opens.
-const TELEGRAM_BOT_USERNAME = "samcobot";
+const TELEGRAM_BOT_USERNAME = "samcotestbot";
 
 const PRODUCTS = [
   // Furniture
@@ -14,12 +14,30 @@ const PRODUCTS = [
     photo: "https://images.unsplash.com/photo-1613906800797-d5d4fb2f7bbb?w=500&q=70&fit=crop&auto=format" },
   { name: "Executive Office Chair", unit: "1 unit, leather", price: 45000, category: "furniture",
     photo: "https://images.unsplash.com/photo-1580087433295-ab2600c1030e?w=500&q=70&fit=crop&auto=format" },
-  { name: "Dining Set (4-seater)", unit: "table + 4 chairs", price: 150000, category: "furniture",
-    photo: "https://images.unsplash.com/photo-1613906800797-d5d4fb2f7bbb?w=500&q=70&fit=crop&auto=format" },
+  { name: "Dining Set – Tan Leather", unit: "table + 4 chairs", price: 280000, category: "furniture",
+    photo: "assets/dining-tan.jpg" },
+  { name: "Dining Set – Teal & Amber (Square Table)", unit: "table + 4 chairs", price: 260000, category: "furniture",
+    photo: "assets/dining-teal-square.jpg" },
+  { name: "Dining Set – Teal & Amber (Rectangular Table)", unit: "table + 4 chairs", price: 295000, category: "furniture",
+    photo: "assets/dining-teal-rect.jpg" },
+  { name: "Dining Set – Cream & Black", unit: "table + 4 chairs", price: 310000, category: "furniture",
+    photo: "assets/dining-cream.jpg" },
+  { name: "Lounge Chair Duo – Orange & Houndstooth", unit: "2 chairs + side table", price: 145000, category: "furniture",
+    photo: "assets/lounge-chairs.jpg" },
   { name: "Round Sofa Set", unit: "3-piece lounge set", price: 320000, category: "furniture",
     photo: "assets/sofa.jpg" },
 
   // Electronics
+  { name: "samsung charger", unit: "20 units", price: 7000, category: "electronics",
+    photo: "assets/samsung-charger.jpg" },
+  { name: "xiaomi power bank", unit: "20 units", price: 42000, category: "electronics",
+    photo: "assets/xiaomi-powerbank.jpg" },
+  { name: "30000MAH powerbank", unit: "20 units", price: 30000, category: "electronics",
+    photo: "assets/powerbank.jpg" },
+  { name: "wifi router", unit: "50 units", price: 15000, category: "electronics",
+    photo: "assets/router.jpg" },
+  { name: "newage powerbank", unit: "30 units", price: 30000, category: "electronics",
+    photo: "assets/newage.jpg" },
   { name: "LED Smart TV", unit: "32-inch", price: 95000, category: "electronics",
     photo: "https://images.unsplash.com/photo-1601944177325-f8867652837f?w=500&q=70&fit=crop&auto=format" },
   { name: "BARDEFU Commercial Blender", unit: "1 unit, heavy duty", price: 42000, category: "electronics",
@@ -28,20 +46,35 @@ const PRODUCTS = [
     photo: "assets/fan.jpg" },
   { name: "Electric Scooter", unit: "1 unit, rechargeable", price: 420000, category: "electronics",
     photo: "assets/scooter.jpg" },
+  
 
   // Groceries
-  { name: "Wala Rice Pro", unit: "50kg bag", price: 78000, category: "groceries",
-    photo: "https://images.unsplash.com/photo-1644377949116-c4a6b529241c?w=500&q=70&fit=crop&auto=format" },
   { name: "Stallion Rice", unit: "25kg bag", price: 42000, category: "groceries",
-    photo: "https://images.unsplash.com/photo-1644377949116-c4a6b529241c?w=500&q=70&fit=crop&auto=format" },
+    photo: "assets/stallion.jpg" },
   { name: "Optimum Rice", unit: "10kg bag", price: 18500, category: "groceries",
-    photo: "https://images.unsplash.com/photo-1644377949116-c4a6b529241c?w=500&q=70&fit=crop&auto=format" },
-  { name: "Vegetable Oil", unit: "5 litres", price: 12500, category: "groceries",
-    photo: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&q=70&fit=crop&auto=format" },
+    photo: "assets/optimum.jpg" },
+  { name: "Amaana Vegetable Oil", unit: "5 litres", price: 12500, category: "groceries",
+    photo: "assets/amaana.jpg" },
   { name: "Spaghetti (carton)", unit: "20 packs", price: 15800, category: "groceries",
-    photo: "https://images.unsplash.com/photo-1737718952107-be42ec98a028?w=500&q=70&fit=crop&auto=format" },
+    photo: "assets/spaghetti.jpg" },
+  { name: "Vegitables", unit: "20 kg", price: 1000, category: "groceries",
+    photo: "assets/vegitables.jpg" },
+  { name: "Dano milk", unit: "20 units", price: 1000, category: "groceries",
+    photo: "assets/dano.jpg" },
+  { name: "corn", unit: "100 pieces", price: 200, category: "groceries",
+    photo: "assets/corn.jpg" },
+  { name: "pea(x10)", unit: "200 pieces", price: 300, category: "groceries",
+    photo: "assets/pea.jpg" },
 
   // Beauty & Personal Care
+  { name: "nivea cream(men)", unit: "100 units", price: 7500, category: "beauty",
+    photo: "assets/nivea-cream.jpg" },
+  { name: "nivea spray(men)", unit: "100 units", price: 7500, category: "beauty",
+    photo: "assets/nivea-spray.jpg" },
+  { name: "Riggs", unit: "100 units", price: 4500, category: "beauty",
+    photo: "assets/riggs.jpg" },
+  { name: "storm spray", unit: "100 units", price: 3500, category: "beauty",
+    photo: "assets/storm.jpg" },
   { name: "Body Lotion", unit: "400ml", price: 4200, category: "beauty",
     photo: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=500&q=70&fit=crop&auto=format" },
   { name: "Roll-on Deodorant", unit: "50ml", price: 2200, category: "beauty",
@@ -50,6 +83,7 @@ const PRODUCTS = [
     photo: "https://images.unsplash.com/photo-1711779187508-a8fac1c18be9?w=500&q=70&fit=crop&auto=format" },
   { name: "Bathing Soap", unit: "1 bar", price: 1500, category: "beauty",
     photo: "https://images.unsplash.com/photo-1572527226808-051d3c05e7a1?w=500&q=70&fit=crop&auto=format" },
+  
 
   // Baby & Household
   { name: "Huggies Diapers", unit: "size 4, jumbo pack", price: 9800, category: "baby",
@@ -60,6 +94,8 @@ const PRODUCTS = [
     photo: "https://images.unsplash.com/photo-1674656801311-2442717f7968?w=500&q=70&fit=crop&auto=format" },
   { name: "Vacuum Flask (Thermal Jug)", unit: "1 litre", price: 8500, category: "baby",
     photo: "assets/flask.jpg" },
+  { name: "groom kit", unit: "50 unit", price: 2500, category: "baby",
+    photo: "assets/baby-groom.jpg" },
 ];
 
 const CATEGORY_META = {
@@ -279,6 +315,32 @@ function wireHeroSearch(){
   });
 }
 
+/* ---------------- HERO CAROUSEL ---------------- */
+function wireHeroCarousel(){
+  const slides = document.querySelectorAll(".hero-slide");
+  const dots = document.querySelectorAll(".hero-dot");
+  if (slides.length < 2) return;
+
+  let current = 0;
+  let timer = null;
+
+  function show(i){
+    slides.forEach((s, idx) => s.classList.toggle("active", idx === i));
+    dots.forEach((d, idx) => d.classList.toggle("active", idx === i));
+    current = i;
+  }
+  function next(){ show((current + 1) % slides.length); }
+  function start(){ timer = setInterval(next, 4500); }
+  function restart(){ clearInterval(timer); start(); }
+
+  dots.forEach((dot, idx) => {
+    dot.addEventListener("click", () => { show(idx); restart(); });
+  });
+
+  show(0);
+  start();
+}
+
 function wireCartUI(){
   const cartBtn = document.getElementById("cartFloatBtn");
   const closeBtn = document.getElementById("cartCloseBtn");
@@ -295,6 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
   wireGenericTelegram();
   wireMobileNav();
   wireHeroSearch();
+  wireHeroCarousel();
   wireCartUI();
   document.getElementById("year") && (document.getElementById("year").textContent = new Date().getFullYear());
 });
