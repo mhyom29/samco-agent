@@ -34,13 +34,13 @@ async def lifespan(app: FastAPI):
     db.init_db()
     logger.info("Database ready.")
 
-    #if config.TELEGRAM_BOT_TOKEN:
-        # Long-polling daemon thread (backup if webhooks are not set)
-        #thread = threading.Thread(target=telegram_bot.run_polling, daemon=True)
-        #thread.start()
-        logger.info("Telegram bot polling thread started.")
-    else:
-        logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot skipped.")
+    # Polling thread disabled in favor of high-speed /webhook endpoint
+    # if config.TELEGRAM_BOT_TOKEN:
+    #     thread = threading.Thread(target=telegram_bot.run_polling, daemon=True)
+    #     thread.start()
+    #     logger.info("Telegram bot polling thread started.")
+    # else:
+    #     logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot skipped.")
 
     yield
 
