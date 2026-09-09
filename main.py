@@ -1,20 +1,7 @@
 """
-SAMCO Superstore — everything in one process.
+SAMCO Superstore — FastAPI Backend Service.
 
     uvicorn main:app --host 0.0.0.0 --port 8000
-
-This single command now gets you:
-  - The website (site/) served at http://localhost:8000/
-  - The Telegram sales bot running in the background (long-polling —
-    started automatically on startup if TELEGRAM_BOT_TOKEN is set)
-  - /webhook/paystack — payment confirmation (needs a public URL to be
-    reachable by Paystack; the site + Telegram bot work fine without it)
-  - /webhook/whatsapp — ready for when you switch channels later (needs
-    Twilio configured in .env; does nothing until then)
-
-Nothing about the website changed — it's the exact same static files you'd
-get opening site/index.html directly. FastAPI is just serving them now
-instead of Python's http.server.
 """
 
 import logging
@@ -23,7 +10,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Form, BackgroundTasks, Header, HTTPException
 from fastapi.responses import PlainTextResponse, Response, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 import config
 import db
@@ -49,15 +35,14 @@ async def lifespan(app: FastAPI):
     logger.info("Database ready.")
 
     if config.TELEGRAM_BOT_TOKEN:
+        # Long-polling daemon thread (backup if webhooks are not set)
         thread = threading.Thread(target=telegram_bot.run_polling, daemon=True)
         thread.start()
-        logger.info("Telegram bot started in the background.")
+        logger.info("Telegram bot polling thread started.")
     else:
-        logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot skipped. "
-                     "Website and Paystack webhook still work fine.")
+        logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot skipped.")
 
     yield
-    # daemon thread stops automatically when the process exits — nothing to clean up
 
 
 app = FastAPI(title="SAMCO Superstore", lifespan=lifespan)
@@ -69,7 +54,45 @@ def health():
 
 
 # ---------------------------------------------------------------------------
-# WhatsApp webhook (Twilio) — for later, inert until Twilio vars are set
+# Telegram Webhook (Background Processing for instant 200 OK)
+# ---------------------------------------------------------------------------
+
+def _handle_incoming_telegram(chat_id: int, text: str):
+    try:
+        reply = agent.run_agent_turn(str(chat_id), text, channel="telegram")
+    except Exception:
+        logger.exception("Agent failed for Telegram chat %s", chat_id)
+        reply = (
+            "Sorry, something went wrong on our end. A staff member will "
+            "follow up with you shortly."
+        )
+    try:
+        telegram.send_message(chat_id, reply)
+    except Exception:
+        logger.exception("Failed to send Telegram reply to %s", chat_id)
+
+
+@app.post("/webhook/telegram")
+@app.post("/webhook")
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"status": "error", "message": "Invalid JSON"}, status_code=400)
+
+    message = data.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    text = message.get("text", "")
+
+    if chat_id and text:
+        logger.info("Incoming Telegram message from %s: %s", chat_id, text)
+        background_tasks.add_task(_handle_incoming_telegram, chat_id, text)
+
+    return JSONResponse({"status": "ok"})
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp webhook (Twilio)
 # ---------------------------------------------------------------------------
 
 def _clean_phone(twilio_from: str) -> str:
@@ -141,21 +164,3 @@ async def paystack_webhook(request: Request, x_paystack_signature: str = Header(
             logger.warning("Paystack webhook for unknown reference: %s", reference)
 
     return PlainTextResponse("ok")
-
-
-# ---------------------------------------------------------------------------
-# Utility: reset a stuck conversation
-# ---------------------------------------------------------------------------
-
-@app.post("/admin/reset/{customer_id}")
-def reset_conversation(customer_id: str):
-    db.reset_conversation(customer_id)
-    return {"reset": customer_id}
-
-
-# ---------------------------------------------------------------------------
-# The website — mounted last so it doesn't shadow the routes above.
-# site/index.html, site/furniture.html etc. become / , /furniture.html, ...
-# ---------------------------------------------------------------------------
-
-#app.mount("/", StaticFiles(directory="site", html=True), name="site")
