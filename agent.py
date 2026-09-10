@@ -2,6 +2,7 @@ import json
 import logging
 
 from google import genai
+from google.genai import errors, types
 
 import config
 import db
@@ -16,7 +17,17 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = genai.Client(api_key=config.GEMINI_API_KEY)
+        _client = genai.Client(
+            api_key=config.GEMINI_API_KEY,
+            http_options=types.HttpOptions(
+                retry_options=types.HttpRetryOptions(
+                    initial_delay=2.0,
+                    attempts=8,
+                    max_delay=65.0,
+                    http_status_codes=[429, 500, 502, 503, 504],
+                )
+            ),
+        )
     return _client
 
 
@@ -225,56 +236,72 @@ def _dispatch_tool(name: str, args: dict, customer_id: str, channel: str) -> dic
 
 def run_agent_turn(customer_id: str, user_message: str, channel: str = "telegram") -> str:
     """
-    Runs one full turn of the conversation: sends the user's message to Gemini,
-    executes any tool calls the model makes (looping until it produces a final
-    text reply or we hit the round cap), and returns the text to send back.
-
-    customer_id is an opaque per-platform identifier — a Telegram chat_id or
-    a WhatsApp phone number, doesn't matter which. channel is stored on the
-    conversation/order so replies (e.g. Paystack payment confirmations) go
-    back out on the right platform.
+    Runs one full turn of the conversation with Gemini retry backoff and
+    rate-limit error handling.
     """
     client = _get_client()
     previous_id = db.get_last_interaction_id(customer_id)
 
-    interaction = client.interactions.create(
-        model=config.GEMINI_MODEL,
-        system_instruction=SYSTEM_INSTRUCTION,
-        input=user_message,
-        tools=TOOLS,
-        previous_interaction_id=previous_id,
-    )
-
-    rounds = 0
-    while rounds < config.MAX_TOOL_ROUNDS:
-        function_calls = [s for s in interaction.steps if s.type == "function_call"]
-        if not function_calls:
-            break
-
-        results_input = []
-        for call in function_calls:
-            result = _dispatch_tool(call.name, call.arguments or {}, customer_id, channel)
-            results_input.append(
-                {
-                    "type": "function_result",
-                    "name": call.name,
-                    "call_id": call.id,
-                    "result": [{"type": "text", "text": json.dumps(result)}],
-                }
-            )
-
+    try:
         interaction = client.interactions.create(
             model=config.GEMINI_MODEL,
             system_instruction=SYSTEM_INSTRUCTION,
+            input=user_message,
             tools=TOOLS,
-            previous_interaction_id=interaction.id,
-            input=results_input,
+            previous_interaction_id=previous_id,
         )
-        rounds += 1
 
-    db.set_last_interaction_id(customer_id, interaction.id, channel=channel)
+        rounds = 0
+        while rounds < config.MAX_TOOL_ROUNDS:
+            function_calls = [s for s in interaction.steps if s.type == "function_call"]
+            if not function_calls:
+                break
 
-    reply = (interaction.output_text or "").strip()
-    if not reply:
-        reply = "Sorry, I didn't quite catch that — could you say that again?"
-    return reply
+            results_input = []
+            for call in function_calls:
+                result = _dispatch_tool(call.name, call.arguments or {}, customer_id, channel)
+                results_input.append(
+                    {
+                        "type": "function_result",
+                        "name": call.name,
+                        "call_id": call.id,
+                        "result": [{"type": "text", "text": json.dumps(result)}],
+                    }
+                )
+
+            interaction = client.interactions.create(
+                model=config.GEMINI_MODEL,
+                system_instruction=SYSTEM_INSTRUCTION,
+                tools=TOOLS,
+                previous_interaction_id=interaction.id,
+                input=results_input,
+            )
+            rounds += 1
+
+        db.set_last_interaction_id(customer_id, interaction.id, channel=channel)
+
+        reply = (interaction.output_text or "").strip()
+        if not reply:
+            reply = "Sorry, I didn't quite catch that — could you say that again?"
+        return reply
+
+    except errors.ClientError as e:
+        if e.code == 429 or "429" in str(e) or "quota" in str(e).lower():
+            logger.warning("Gemini 429 Rate Limit hit for customer %s", customer_id)
+            return (
+                "We're receiving high order traffic right now! "
+                "Please wait 30 seconds and try your message again."
+            )
+        logger.exception("Gemini ClientError for customer %s", customer_id)
+        return "Sorry, something went wrong on our end. A staff member will follow up shortly."
+
+    except Exception as e:
+        error_str = str(e)
+        if "429" in error_str or "quota" in error_str.lower():
+            logger.warning("Gemini quota exception hit for customer %s: %s", customer_id, e)
+            return (
+                "We're receiving high order traffic right now! "
+                "Please wait 30 seconds and try your message again."
+            )
+        logger.exception("Unexpected error in agent turn for %s", customer_id)
+        return "Sorry, something went wrong on our end. A staff member will follow up shortly."
