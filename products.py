@@ -1,16 +1,6 @@
 """
 SAMCO Superstore product catalog.
-
-This is the AI agent's source of truth for what's in stock, units, and prices.
-It mirrors the PRODUCTS array in site/js/catalog.js — same 21 products, same
-names, same prices. Every product on the site now has a real photo (either
-an actual SAMCO store photo or a stock photo) rather than an icon, so this
-list is intentionally shorter than earlier versions — trimmed to only what
-could be shown properly.
-
->>> KEEP THIS IN SYNC WITH THE WEBSITE <<<
-When you update prices/products on the site (site/js/catalog.js), update
-them here too.
+Kept in 1-to-1 sync with site/js/catalog.js.
 """
 
 PRODUCTS = [
@@ -25,19 +15,31 @@ PRODUCTS = [
     {"name": "Round Sofa Set", "unit": "3-piece lounge set", "price": 320000, "category": "furniture"},
 
     # Electronics
+    {"name": "samsung charger", "unit": "20 units", "price": 7000, "category": "electronics"},
+    {"name": "xiaomi power bank", "unit": "20 units", "price": 42000, "category": "electronics"},
+    {"name": "30000MAH powerbank", "unit": "20 units", "price": 30000, "category": "electronics"},
+    {"name": "wifi router", "unit": "50 units", "price": 15000, "category": "electronics"},
+    {"name": "newage powerbank", "unit": "30 units", "price": 30000, "category": "electronics"},
     {"name": "LED Smart TV", "unit": "32-inch", "price": 95000, "category": "electronics"},
     {"name": "BARDEFU Commercial Blender", "unit": "1 unit, heavy duty", "price": 42000, "category": "electronics"},
     {"name": "SUPER Rechargeable Fan", "unit": "1 unit, foldable", "price": 15500, "category": "electronics"},
     {"name": "Electric Scooter", "unit": "1 unit, rechargeable", "price": 420000, "category": "electronics"},
 
     # Groceries
-    {"name": "Wala Rice Pro", "unit": "50kg bag", "price": 78000, "category": "groceries"},
     {"name": "Stallion Rice", "unit": "25kg bag", "price": 42000, "category": "groceries"},
     {"name": "Optimum Rice", "unit": "10kg bag", "price": 18500, "category": "groceries"},
-    {"name": "Vegetable Oil", "unit": "5 litres", "price": 12500, "category": "groceries"},
+    {"name": "Amaana Vegetable Oil", "unit": "5 litres", "price": 12500, "category": "groceries"},
     {"name": "Spaghetti (carton)", "unit": "20 packs", "price": 15800, "category": "groceries"},
+    {"name": "Vegitables", "unit": "20 kg", "price": 1000, "category": "groceries"},
+    {"name": "Dano milk", "unit": "20 units", "price": 1000, "category": "groceries"},
+    {"name": "corn", "unit": "100 pieces", "price": 200, "category": "groceries"},
+    {"name": "pea(x10)", "unit": "200 pieces", "price": 300, "category": "groceries"},
 
     # Beauty & Personal Care
+    {"name": "nivea cream(men)", "unit": "100 units", "price": 7500, "category": "beauty"},
+    {"name": "nivea spray(men)", "unit": "100 units", "price": 7500, "category": "beauty"},
+    {"name": "Riggs", "unit": "100 units", "price": 4500, "category": "beauty"},
+    {"name": "storm spray", "unit": "100 units", "price": 3500, "category": "beauty"},
     {"name": "Body Lotion", "unit": "400ml", "price": 4200, "category": "beauty"},
     {"name": "Roll-on Deodorant", "unit": "50ml", "price": 2200, "category": "beauty"},
     {"name": "Toothpaste", "unit": "1 tube", "price": 2100, "category": "beauty"},
@@ -48,6 +50,7 @@ PRODUCTS = [
     {"name": "Baby Wipes", "unit": "pack of 3", "price": 3400, "category": "baby"},
     {"name": "Toilet Tissue", "unit": "pack of 12 rolls", "price": 4300, "category": "baby"},
     {"name": "Vacuum Flask (Thermal Jug)", "unit": "1 litre", "price": 8500, "category": "baby"},
+    {"name": "groom kit", "unit": "50 unit", "price": 2500, "category": "baby"},
 ]
 
 CATEGORY_LABELS = {
@@ -59,17 +62,19 @@ CATEGORY_LABELS = {
 }
 
 
-def search_products(query: str, limit: int = 8):
-    """Case-insensitive substring search over product name and category label."""
-    q = (query or "").strip().lower()
-    if not q:
-        return []
+def search_products(query: str):
+    words = [
+        w for w in query.lower().replace("(", "").replace(")", "").split()
+        if w not in ["units", "unit", "x1", "x2", "x3", "x4", "x5"]
+    ]
     results = []
-    for p in PRODUCTS:
-        label = CATEGORY_LABELS.get(p["category"], p["category"])
-        if q in p["name"].lower() or q in label.lower() or q in p["category"]:
-            results.append(p)
-    return results[:limit]
+
+    for product in PRODUCTS:
+        product_name = product["name"].lower()
+        if all(word in product_name for word in words):
+            results.append(product)
+
+    return results
 
 
 def find_product_exact(name: str):
