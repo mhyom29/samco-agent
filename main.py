@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Form, BackgroundTasks, Header, HTTPException
 from fastapi.responses import PlainTextResponse, Response, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 import config
 import db
@@ -22,6 +23,18 @@ import paystack
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("samco-main")
 
+# Custom StaticFiles to prevent aggressive browser caching of static assets
+class NoCacheStaticFiles(StaticFiles):
+    def is_not_modified(self, response_headers, request_headers):
+        return False
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
 # Maps an order's channel to the function that can message that customer back.
 SENDERS = {
     "whatsapp": whatsapp.send_message,
@@ -33,15 +46,6 @@ SENDERS = {
 async def lifespan(app: FastAPI):
     db.init_db()
     logger.info("Database ready.")
-
-    # Polling thread disabled in favor of high-speed /webhook endpoint
-    # if config.TELEGRAM_BOT_TOKEN:
-    #     thread = threading.Thread(target=telegram_bot.run_polling, daemon=True)
-    #     thread.start()
-    #     logger.info("Telegram bot polling thread started.")
-    # else:
-    #     logger.info("TELEGRAM_BOT_TOKEN not set — Telegram bot skipped.")
-
     yield
 
 
@@ -164,3 +168,9 @@ async def paystack_webhook(request: Request, x_paystack_signature: str = Header(
             logger.warning("Paystack webhook for unknown reference: %s", reference)
 
     return PlainTextResponse("ok")
+
+
+# ---------------------------------------------------------------------------
+# Static File Mounting (Must remain at the bottom of main.py)
+# ---------------------------------------------------------------------------
+app.mount("/", NoCacheStaticFiles(directory=".", html=True), name="static")
