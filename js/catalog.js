@@ -4,8 +4,6 @@
    If you add a product, add a real `photo` too or it won't render well.
    ====================================================================== */
 
-// ⚠️ SET THIS to your bot's @username (from BotFather) before shipping —
-// this is what "Checkout on Telegram" opens.
 const TELEGRAM_BOT_USERNAME = "samcotestbot";
 
 const PRODUCTS = [
@@ -46,7 +44,6 @@ const PRODUCTS = [
     photo: "assets/fan.jpg" },
   { name: "Electric Scooter", unit: "1 unit, rechargeable", price: 420000, category: "electronics",
     photo: "assets/scooter.jpg" },
-  
 
   // Groceries
   { name: "Stallion Rice", unit: "25kg bag", price: 42000, category: "groceries",
@@ -83,7 +80,6 @@ const PRODUCTS = [
     photo: "https://images.unsplash.com/photo-1711779187508-a8fac1c18be9?w=500&q=70&fit=crop&auto=format" },
   { name: "Bathing Soap", unit: "1 bar", price: 1500, category: "beauty",
     photo: "https://images.unsplash.com/photo-1572527226808-051d3c05e7a1?w=500&q=70&fit=crop&auto=format" },
-  
 
   // Baby & Household
   { name: "Huggies Diapers", unit: "size 4, jumbo pack", price: 9800, category: "baby",
@@ -108,18 +104,46 @@ const CATEGORY_META = {
 const CATEGORY_ORDER = ["furniture", "electronics", "groceries", "beauty", "baby"];
 
 function nairaFmt(n){ return "₦" + n.toLocaleString("en-NG"); }
+function nairaHTML(n){ return `<span class="naira-sym">₦</span>${n.toLocaleString("en-NG")}`; }
+function telegramLink(){ return `https://t.me/${TELEGRAM_BOT_USERNAME}`; }
+
+/* ---------------- TOASTS (replaces alert()) ---------------- */
+function ensureToastWrap(){
+  let wrap = document.getElementById("toastWrap");
+  if (!wrap){
+    wrap = document.createElement("div");
+    wrap.id = "toastWrap";
+    wrap.className = "toast-wrap";
+    document.body.appendChild(wrap);
+  }
+  return wrap;
+}
+function showToast(message, type){
+  const wrap = ensureToastWrap();
+  const el = document.createElement("div");
+  el.className = "toast" + (type === "error" ? " error" : "");
+  const icon = type === "error"
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>`;
+  el.innerHTML = `${icon}<span>${message}</span>`;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
+}
 
 /* ---------------- CART (persists across pages via localStorage) ---------------- */
 const CART_KEY = "samco_cart_v1";
 
 function getCart(){
-  try {
-    return JSON.parse(localStorage.getItem(CART_KEY)) || {};
-  } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; }
+  catch(e) { return {}; }
 }
 function saveCart(cart){
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  updateCartBadge();
+  updateCartBadge(true);
 }
 function addToCart(name, qty){
   const cart = getCart();
@@ -145,12 +169,19 @@ function cartTotal(){
   }
   return total;
 }
-function updateCartBadge(){
+function updateCartBadge(bump){
   const badge = document.getElementById("cartBadge");
+  const btn = document.getElementById("cartFloatBtn");
   if (!badge) return;
   const count = cartCount();
   badge.textContent = count;
   badge.style.display = count > 0 ? "flex" : "none";
+  if (bump && btn){
+    badge.classList.remove("bump"); btn.classList.remove("bump");
+    void badge.offsetWidth;
+    badge.classList.add("bump"); btn.classList.add("bump");
+    setTimeout(() => { badge.classList.remove("bump"); btn.classList.remove("bump"); }, 400);
+  }
 }
 
 function renderCartDrawer(){
@@ -165,7 +196,7 @@ function renderCartDrawer(){
   if (entries.length === 0){
     list.innerHTML = "";
     if (emptyEl) emptyEl.style.display = "block";
-    if (totalEl) totalEl.textContent = nairaFmt(0);
+    if (totalEl) totalEl.innerHTML = nairaHTML(0);
     return;
   }
   if (emptyEl) emptyEl.style.display = "none";
@@ -188,7 +219,7 @@ function renderCartDrawer(){
       </div>`;
   }).join("");
 
-  if (totalEl) totalEl.textContent = nairaFmt(cartTotal());
+  if (totalEl) totalEl.innerHTML = nairaHTML(cartTotal());
 }
 
 function buildOrderText(){
@@ -203,17 +234,19 @@ function buildOrderText(){
   return lines.join("\n");
 }
 
-function telegramLink(){
-  return `https://t.me/${TELEGRAM_BOT_USERNAME}`;
-}
-
 async function checkoutOnTelegram(){
+  const cart = getCart();
+  if (Object.keys(cart).length === 0){
+    showToast("Your cart is empty — add something first.", "error");
+    return;
+  }
   const text = buildOrderText();
   try {
     await navigator.clipboard.writeText(text);
-    alert("Order copied! Paste it into the Telegram chat that's about to open.");
+    showToast("Order copied — paste it into the chat that just opened.");
   } catch(e) {
-    alert("Couldn't auto-copy — here's your order, copy it manually:\n\n" + text);
+    showToast("Couldn't auto-copy your order — check the browser console.", "error");
+    console.log(text);
   }
   window.open(telegramLink(), "_blank");
 }
@@ -228,52 +261,49 @@ function closeCartDrawer(){
   document.getElementById("cartOverlay").classList.remove("open");
 }
 
-/* ---------------- PRODUCT CARDS ---------------- */
+/* ---------------- PRODUCT CARDS ----------------
+   Redesigned for density: category pill overlaid on the image instead of
+   its own row, no pre-add quantity stepper (matches Jumia/Konga — add
+   defaults to 1, adjust quantity in the cart drawer), price and Add share
+   one row instead of two stacked rows.
+   ------------------------------------------------ */
 function productCardHTML(p, showCategoryPill){
   const pill = showCategoryPill && CATEGORY_META[p.category]
-    ? `<span class="cat-pill">${CATEGORY_META[p.category].label}</span>`
+    ? `<span class="cat-pill-overlay">${CATEGORY_META[p.category].label}</span>`
     : "";
   const safeName = p.name.replace(/'/g, "\\'");
   return `
     <div class="prod-card">
-      ${pill}
-      <div class="prod-thumb"><img src="${p.photo}" alt="${p.name}" loading="lazy"></div>
-      <div class="prod-name">${p.name}</div>
-      <div class="prod-unit">${p.unit}</div>
-      <div class="prod-bottom">
-        <div class="prod-price"><span class="naira">${nairaFmt(p.price)}</span></div>
+      <div class="prod-thumb">
+        ${pill}
+        <img src="${p.photo}" alt="${p.name}" loading="lazy">
       </div>
-      <div class="qty-row">
-        <div class="qty-stepper" data-product="${safeName}">
-          <button class="qty-btn" data-action="dec">−</button>
-          <span class="qty-val">1</span>
-          <button class="qty-btn" data-action="inc">+</button>
+      <div class="prod-body">
+        <div class="prod-name">${p.name}</div>
+        <div class="prod-unit">${p.unit}</div>
+        <div class="prod-bottom">
+          <div class="prod-price">${nairaHTML(p.price)}</div>
+          <button class="add-btn" data-product="${safeName}" type="button" aria-label="Add ${p.name} to cart">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Add</span>
+          </button>
         </div>
-        <button class="add-btn" data-product="${safeName}">Add to cart</button>
       </div>
     </div>`;
 }
 
 function wireProductCardControls(container){
-  container.querySelectorAll(".qty-stepper").forEach(stepper => {
-    const valEl = stepper.querySelector(".qty-val");
-    stepper.querySelectorAll(".qty-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        let v = parseInt(valEl.textContent, 10);
-        v = btn.dataset.action === "inc" ? v + 1 : Math.max(1, v - 1);
-        valEl.textContent = v;
-      });
-    });
-  });
   container.querySelectorAll(".add-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const name = btn.dataset.product;
-      const stepper = container.querySelector(`.qty-stepper[data-product="${CSS.escape(name)}"]`);
-      const qty = stepper ? parseInt(stepper.querySelector(".qty-val").textContent, 10) : 1;
-      addToCart(name, qty);
-      const original = btn.textContent;
-      btn.textContent = "Added ✓";
-      setTimeout(() => { btn.textContent = original; }, 1200);
+      addToCart(name, 1);
+
+      btn.classList.add("added");
+      const label = btn.querySelector("span");
+      const original = label.textContent;
+      label.textContent = "Added";
+      showToast(`${name} added to cart.`);
+      setTimeout(() => { label.textContent = original; btn.classList.remove("added"); }, 1100);
     });
   });
 }
@@ -315,7 +345,6 @@ function wireHeroSearch(){
   });
 }
 
-/* ---------------- HERO CAROUSEL ---------------- */
 function wireHeroCarousel(){
   const slides = document.querySelectorAll(".hero-slide");
   const dots = document.querySelectorAll(".hero-dot");
@@ -330,7 +359,7 @@ function wireHeroCarousel(){
     current = i;
   }
   function next(){ show((current + 1) % slides.length); }
-  function start(){ timer = setInterval(next, 4500); }
+  function start(){ timer = setInterval(next, 4800); }
   function restart(){ clearInterval(timer); start(); }
 
   dots.forEach((dot, idx) => {
@@ -350,7 +379,7 @@ function wireCartUI(){
   if (closeBtn) closeBtn.addEventListener("click", closeCartDrawer);
   if (overlay) overlay.addEventListener("click", closeCartDrawer);
   if (checkoutBtn) checkoutBtn.addEventListener("click", checkoutOnTelegram);
-  updateCartBadge();
+  updateCartBadge(false);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
