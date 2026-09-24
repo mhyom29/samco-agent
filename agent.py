@@ -53,9 +53,6 @@ How to work:
 6. Never invent delivery timelines, stock levels, or discounts that tools didn't provide.
 """
 
-# Groq/OpenAI tool-calling format: {"type": "function", "function": {name, description, parameters}}
-# (Gemini's format was flatter — {"type": "function", "name": ..., ...} — this is the one
-# structural thing that had to change when the tool definitions moved providers.)
 TOOLS = [
     {
         "type": "function",
@@ -148,7 +145,6 @@ TOOLS = [
 
 
 def _dispatch_tool(name: str, args: dict, customer_id: str, channel: str) -> dict:
-    """Executes a tool call and returns a JSON-serializable result. Provider-agnostic — unchanged from the Gemini version."""
     try:
         if name == "search_products":
             results = products.search_products(args.get("query", ""))
@@ -240,12 +236,6 @@ def _is_rate_limit_error(e: Exception) -> bool:
 
 
 def run_agent_turn(customer_id: str, user_message: str, channel: str = "telegram") -> str:
-    """
-    Runs one full turn of the conversation against Groq. Unlike Gemini's
-    Interactions API, Groq/OpenAI-style chat completions are stateless per
-    call — we load and persist the full message history ourselves via db.py,
-    trimmed to MAX_HISTORY_MESSAGES to stay under the free-tier TPM budget.
-    """
     client = _get_client()
     history = db.get_conversation_history(customer_id)
 
@@ -268,9 +258,7 @@ def run_agent_turn(customer_id: str, user_message: str, channel: str = "telegram
                 messages.append({"role": "assistant", "content": message.content or ""})
                 break
 
-            # Groq's assistant message with tool_calls must be preserved in the
-            # history exactly as returned before the tool results are appended,
-            # or the next call will reject the conversation as malformed.
+            # Groq's assistant message with tool_calls must include name and arguments inside function
             messages.append({
                 "role": "assistant",
                 "content": message.content or None,
@@ -278,7 +266,10 @@ def run_agent_turn(customer_id: str, user_message: str, channel: str = "telegram
                     {
                         "id": call.id,
                         "type": "function",
-                        "function": {"name": call.function.name, "arguments": call.function.arguments},
+                        "function": {
+                            "name": call.function.name,
+                            "arguments": call.function.arguments,
+                        },
                     }
                     for call in tool_calls
                 ],
@@ -298,13 +289,11 @@ def run_agent_turn(customer_id: str, user_message: str, channel: str = "telegram
 
             rounds += 1
         else:
-            # Hit MAX_TOOL_ROUNDS without a final text reply.
             messages.append({
                 "role": "assistant",
                 "content": "Sorry, that's taking longer than expected — could you try again?",
             })
 
-        # Persist everything except the system prompt (re-added fresh each turn).
         db.save_conversation_history(customer_id, messages[1:], channel=channel)
 
         reply = (messages[-1].get("content") or "").strip()
